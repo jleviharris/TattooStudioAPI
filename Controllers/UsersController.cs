@@ -7,6 +7,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TattooStudioApi.Data;
 using TattooStudioApi.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace TattooStudio.Controllers
 {
@@ -15,13 +20,15 @@ namespace TattooStudio.Controllers
     public class UsersController : ControllerBase
     {
         private readonly TattooStudioDbContext _context;
-
-        public UsersController(TattooStudioDbContext context)
+        private readonly IConfiguration _configuration;
+        public UsersController(TattooStudioDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         // GET: api/Users
+        [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()
         {
@@ -103,6 +110,31 @@ namespace TattooStudio.Controllers
         private bool UserExists(Guid id)
         {
             return _context.Users.Any(e => e.RowKey == id);
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+            if (user == null || user.PasswordHash != request.Password) 
+            {
+                return Unauthorized(new { message = "Invalid email or password" });
+            }
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Secret"]); 
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[] { new Claim("id", user.RowKey.ToString()) }),
+                Expires = DateTime.UtcNow.AddHours(2),
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var tokenString = tokenHandler.WriteToken(token);
+
+            return Ok(new { token = tokenString, user });
         }
     }
 }

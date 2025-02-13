@@ -1,11 +1,15 @@
-
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using TattooStudioApi.Data;
 
 namespace TattooStudio
 {
     public class Program
     {
+      
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +33,25 @@ namespace TattooStudio
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
             );
 
+
+            var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]);
+
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+      .AddJwtBearer(options =>
+      {
+          options.RequireHttpsMetadata = false;
+          options.SaveToken = true;
+          options.TokenValidationParameters = new TokenValidationParameters
+          {
+              ValidateIssuerSigningKey = true,
+              IssuerSigningKey = new SymmetricSecurityKey(key),
+              ValidateIssuer = false,
+              ValidateAudience = false
+          };
+      });
+
+            builder.Services.AddAuthorization();
+
             var app = builder.Build();
             app.UseCors("AllowAngular");
             // Configure the HTTP request pipeline.
@@ -39,7 +62,7 @@ namespace TattooStudio
             }
 
             app.UseHttpsRedirection();
-
+            app.UseAuthentication();
             app.UseAuthorization();
 
 
