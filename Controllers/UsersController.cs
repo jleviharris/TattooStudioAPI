@@ -85,11 +85,21 @@ namespace TattooStudio.Controllers
         [HttpPost]
         public async Task<ActionResult<User>> PostUser(User user)
         {
+            // Check if the email already exists (case-insensitive)
+            var existingUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == user.Email.ToLower());
+
+            if (existingUser != null)
+            {
+                return Conflict(new { message = "A user with this email already exists." });
+            }
+
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetUser", new { id = user.RowKey }, user);
+            return CreatedAtAction(nameof(GetUser), new { id = user.RowKey }, user);
         }
+
 
         // DELETE: api/Users/5
         [HttpDelete("{id}")]
